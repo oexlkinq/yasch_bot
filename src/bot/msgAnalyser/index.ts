@@ -153,11 +153,10 @@ export class MsgAnalyser {
         function compare(detectResults: typeof chunksInfoByType, part: part) {
             let res = false
     
-            let usedDetectResults = [] as chunkType[]
-            // проверять пока не найдётся совпадающий вариант
-            for (let variant of part.variants) {
-                usedDetectResults = []
-    
+            // проверить все варианты и выбрать наиболее подходящий
+            let bestRes: chunkType[] = []
+            for (const variant of part.variants) {
+                let usedDetectResults: chunkType[] = []
                 let badLeft = (part.wants === 'some') ? variant.length : 1
     
                 // проверить присутствие каждой части
@@ -187,10 +186,13 @@ export class MsgAnalyser {
                     }
                 }
     
-                // если вариант подошёл
-                res = (badLeft > 0)
-                if (res) {
-                    break
+                if(badLeft === 0){
+                    continue
+                }
+
+                if(usedDetectResults.length > bestRes.length){
+                    res = true
+                    bestRes = usedDetectResults
                 }
             }
     
@@ -198,7 +200,7 @@ export class MsgAnalyser {
             res = res || !part.required
     
             return {
-                used: (res) ? usedDetectResults : [],
+                used: (res) ? bestRes : [],
                 res,
             }
         }
