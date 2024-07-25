@@ -1,0 +1,10 @@
+# игнорировать всё в корне
+/*
+
+# кроме
+!/src
+!/.gitignore
+!/package.json
+!/tsconfig.json
+!/example.config.json
+!/dbStruct.sql
