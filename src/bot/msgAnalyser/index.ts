@@ -323,7 +323,7 @@ export class MsgAnalyser {
                 let date = new Date()
                 date.setDate(+d)
                 if (m) {
-                    date.setMonth(+m)
+                    date.setMonth(+m - 1)
                 }
                 if (y) {
                     const fullYear = +y
