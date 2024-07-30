@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { DB, dbUser, User } from "../db.js";
-import { Job, scheduleJob } from "node-schedule";
+import { scheduleJob } from "node-schedule";
 import { Formatter } from "./formatter.js";
 import { actionsInfo, MsgAnalyser } from "./msgAnalyser/index.js";
 import { texts } from "./texts.js";
@@ -347,6 +347,10 @@ export class Bot {
 		})
 
 		for (const [group, pairs] of pairsOfAllSubs.groupName) {
+			if(pairs.length === 0){
+				continue
+			}
+
 			const users = subsOfGroup.get(group) ?? []
 
 			const cacheByFormat = new Array<string>(Formatter.presets.length)
@@ -370,6 +374,18 @@ export class Bot {
 		for (const [query, pairs] of pairsOfAllSubs.query) {
 			const users = subsOfQuery.get(query) ?? []
 
+			if(pairs.length === 0){
+				for(const user of users){
+					const text = defferedMessages.get(user.id)
+
+					if(text){
+						tasks.push(limitedSend(user.id, text))
+					}
+				}
+
+				continue
+			}
+
 			const cacheByFormat = new Array<string>(Formatter.presets.length)
 			for (const user of users) {
 				let text = cacheByFormat[user.format]
@@ -378,7 +394,7 @@ export class Bot {
 					cacheByFormat[user.format] = text
 				}
 
-				const stMsgPart = defferedMessages.get(user.id) ?? ''
+				const stMsgPart = defferedMessages.get(user.id)
 				if (stMsgPart) {
 					text = `${stMsgPart}\n${text}`
 				} else {
@@ -415,5 +431,4 @@ export class Bot {
 	};
 }
 
-type inlineKeyboard = TelegramBot.InlineKeyboardMarkup['inline_keyboard']
 type getUser = () => Promise<User>
