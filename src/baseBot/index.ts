@@ -1,128 +1,37 @@
-import TelegramBot from "node-telegram-bot-api";
 import { DB, dbUser, User } from "../db.js";
-import { scheduleJob } from "node-schedule";
 import { Formatter } from "./formatter.js";
 import { actionsInfo, MsgAnalyser } from "./msgAnalyser/index.js";
 import { texts } from "./texts.js";
-import { pairsGetDateOptions, pairsGetTargetOptions, SchApi } from "./api.js";
+import { pairsGetDateOptions, pairsGetTargetOptions, SchApi } from "../api.js";
 import { Monday } from "../utils/monday.js";
-import Bottleneck from 'bottleneck'
 import { Logger } from "../logger.js";
+import { platforms, PlatformSpecificBot } from "../platforms/index.js";
 
 export class Bot {
-	private constructor(
-		public tgbot: TelegramBot,
+	constructor(
 		public msgAnalyser: MsgAnalyser,
 		public schapi: SchApi,
 		public db: DB,
 		public logger: Logger,
-		public limiter: Bottleneck,
 	) { }
 
-	static async make(db: DB, schapi: SchApi, token: string, logger: Logger) {
-		const tgbot = new TelegramBot(token)
-		const msgAnalyser = new MsgAnalyser()
-		const limiter = new Bottleneck({
-			maxConcurrent: 30,
-			reservoir: 30,
-			reservoirRefreshAmount: 30,
-			reservoirRefreshInterval: 1000,
-		})
-
-		return new Bot(tgbot, msgAnalyser, schapi, db, logger, limiter)
-	}
-
-	async start(skipStartupBurst = true) {
-		// пропустить накопившиеся сообщения
-		if (skipStartupBurst) {
-			console.log('skip burst...');
-
-			const updates = await this.tgbot.getUpdates({
-				offset: -100,
-				allowed_updates: ['message'],
-			})
-
-			updates.map(update => {
-				const msg = update.message
-				if (!msg) {
-					return
-				}
-
-				console.log(`${msg.from?.username ?? msg.from?.first_name ?? '__nobody__'}: ${msg.text ?? '__nothing__'}`)
-			})
-		}
-
-		// обновить список команд
-		console.log('update commands...');
-		await this.tgbot.setMyCommands([
-			{
-				command: 'start',
-				description: 'Короткая справка + показать кнопки',
-			}
-		])
-
-		// создание задач рассылки
-		scheduleJob('0 7 * 1-6,9-12 1-6', async () => {
-			try {
-				await this.startMailing(new Date(), '📕 Расписание занятий на сегодня')
-			} catch (e) {
-				console.error(e)
-				this.logger.logToChat('бот. рассылка', e)
-			}
-		});
-		scheduleJob('0 19 * 1-6,9-12 0-5', async () => {
-			try {
-				const date = new Date()
-				date.setDate(date.getDate() + 1)
-
-				await this.startMailing(date, '📗 Расписание занятий на завтра')
-			} catch (e) {
-				console.error(e)
-				this.logger.logToChat('бот. рассылка', e)
-			}
-		});
-
-		// прикрепление обработчика сообщений
-		this.tgbot.on('message', this.router.bind(this));
-
-		// запуск обработки сообщений
-		console.log('start polling...');
-		return this.tgbot.startPolling({
-			polling: true,
-		})
-	}
-
-	async router(msg: TelegramBot.Message) {
-		if (!msg.text) {
-			return
-		}
-
-		const send = (text: string, options?: TelegramBot.SendMessageOptions) => {
-			this.logger.dumpMsg(msg, text)
-
-			return this.limiter.schedule(
-				() => this.tgbot.sendMessage(
-					msg.chat.id,
-					text,
-					Object.assign({ reply_markup: Bot.defaultKeyboard } as TelegramBot.SendMessageOptions, options),
-				),
-			)
-		}
+	async router(request: { text: string, from: string }, getUser: getUser) {
+		let text = ''
 
 		try {
-			let user: User | undefined
-			const getUser = async () => user ?? (user = await User.make(this.db.pool, msg.chat.id))
-
-			if (msg.text.startsWith('/start')) {
-				return send(texts.shortHelp)
+			if (request.text.length > 100) {
+				return text = '⚠️ Слишком длинный запрос'
 			}
 
-			const analyseRes = this.msgAnalyser.analyse(msg.text)
+			if (request.text.startsWith('/start')) {
+				return text = texts.shortHelp
+			}
+
+			const analyseRes = this.msgAnalyser.analyse(request.text)
 			if (!analyseRes) {
-				return await send('⚠️ Не удалось определить команду')
+				return text = '⚠️ Не удалось определить команду'
 			}
 
-			let text = ''
 			if (!analyseRes.allUsed) {
 				text += `ℹ️ Выполненный запрос: ${analyseRes.chunks.filter(item => item.used).map(item => item.text).join(' ')}\n\n`
 			}
@@ -143,18 +52,27 @@ export class Bot {
 
 				case "feedback":
 					const { text } = analyseRes.info as actionsInfo['feedback']
-					handlerReturn = await this.feedbackHandler(text, msg.from)
+
+					handlerReturn = await this.feedbackHandler(text, request.from)
 					break
 			}
 
 			text += handlerReturn
 
-			await send(text)
+			return text
 		} catch (e) {
-			await send('⚠️ Произошла неизвестная ошибка')
-
 			console.error(e)
 			this.logger.logToChat('бот. неизвестная ошибка', e)
+
+			return text = '⚠️ Произошла неизвестная ошибка'
+		} finally {
+			this.logger.dumpRequest(
+				[
+					request.text,
+					request.from,
+				].join('#'),
+				text,
+			)
 		}
 	}
 
@@ -265,13 +183,13 @@ export class Bot {
 		return text
 	}
 
-	async feedbackHandler(text: string, from?: TelegramBot.User): Promise<string> {
-		this.logger.logToChat(`отзыв от ${(from?.username) ? '@' + from.username : from?.first_name ?? '__nobody__'}\n${text}`)
+	async feedbackHandler(text: string, sender: string): Promise<string> {
+		this.logger.logToChat(`отзыв от ${sender}\n${text}`)
 
 		return 'ℹ️ Отзыв отправлен'
 	}
 
-	async startMailing(date: Date, title: string) {
+	async startMailing(sendFuncs: { [key in platforms]: PlatformSpecificBot['mailingSend'] }, date: Date, title: string) {
 		// получить список всех пользователей, у которых включена рассылка
 		const users = await User.getAllSubs(this.db.pool)
 
@@ -312,42 +230,10 @@ export class Bot {
 		const defferedMessages = new Map<number, string>()
 		const tasks: Promise<any>[] = []
 		const errors: unknown[] = []
-		const limiter = new Bottleneck({
-			maxConcurrent: 20,
-			reservoir: 20,
-			reservoirRefreshAmount: 20,
-			reservoirRefreshInterval: 1000,
-		})
-		limiter.on('error', (e) => {
-			console.error(e)
-			this.logger.logToChat('бот. рассылка. событие error в limiter', e)
-		})
-
-		const limitedSend = limiter.wrap(async (user_id: number, text: string) => {
-			try {
-				await this.tgbot.sendMessage(user_id, text)
-			} catch (e) {
-				// https://github.com/yagop/node-telegram-bot-api/blob/master/doc/usage.md#error-handling
-				if (e instanceof Object && 'code' in e && e.code === 'ETELEGRAM') {
-					// @ts-ignore TODO
-					const error_code = e.response?.body?.error_code
-					if ([400, 403].includes(error_code)) {
-						console.warn(`user ${user_id} was dropped`)
-						User.drop(this.db.pool, user_id).catch(e => {
-							console.error(e)
-							this.logger.logToChat('бот. рассылка. удаление пользователя', e)
-						})
-
-						return
-					}
-				}
-
-				errors.push(e)
-			}
-		})
+		const send = (user: dbUser, text: string) => sendFuncs[user.platform](user.id, text).catch(e => { errors.push(e) })
 
 		for (const [group, pairs] of pairsOfAllSubs.groupName) {
-			if(pairs.length === 0){
+			if (pairs.length === 0) {
 				continue
 			}
 
@@ -366,7 +252,7 @@ export class Bot {
 					defferedMessages.set(user.id, text)
 				} else {
 					// иначе отправить сразу же
-					tasks.push(limitedSend(user.id, text))
+					tasks.push(send(user, text))
 				}
 			}
 		}
@@ -374,12 +260,12 @@ export class Bot {
 		for (const [query, pairs] of pairsOfAllSubs.query) {
 			const users = subsOfQuery.get(query) ?? []
 
-			if(pairs.length === 0){
-				for(const user of users){
+			if (pairs.length === 0) {
+				for (const user of users) {
 					const text = defferedMessages.get(user.id)
 
-					if(text){
-						tasks.push(limitedSend(user.id, text))
+					if (text) {
+						tasks.push(send(user, text))
 					}
 				}
 
@@ -401,34 +287,16 @@ export class Bot {
 					text = `${title}\n\n${text}`
 				}
 
-				tasks.push(limitedSend(user.id, text))
+				tasks.push(send(user, text))
 			}
 		}
 
 		await Promise.allSettled(tasks)
-		await limiter.stop()
 		errors.forEach(error => console.error(error))
-		if(errors.length > 0){
+		if (errors.length > 0) {
 			this.logger.logToChat('бот. рассылка. кол-во ошибок: ' + errors.length)
 		}
 	}
-
-	static defaultKeyboard: TelegramBot.ReplyKeyboardMarkup = {
-		keyboard: [
-			[
-				{ text: 'Сегодня' },
-				{ text: 'Завтра' },
-				{ text: 'Неделя' },
-			],
-			[
-				{ text: 'Справка' },
-				{ text: 'Звонки' },
-				{ text: 'Файлы' },
-			],
-		],
-		resize_keyboard: true,
-		is_persistent: true,
-	};
 }
 
 type getUser = () => Promise<User>

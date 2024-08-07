@@ -1,4 +1,4 @@
-import { Day, Pair } from "./api.js";
+import { Day, Pair } from "../api.js";
 
 export class Formatter {
     static formatDays(days: Day[], presetIndex = 0) {

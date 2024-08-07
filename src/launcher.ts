@@ -1,8 +1,11 @@
-import { Bot } from "./bot/index.js";
+import { Bot } from "./baseBot/index.js";
 import { readFile } from 'node:fs/promises';
 import { DB } from "./db.js";
-import { SchApi } from "./bot/api.js";
+import { SchApi } from "./api.js";
 import { Logger } from "./logger.js";
+import { TgBot } from "./platforms/tg.js";
+import { MsgAnalyser } from "./baseBot/msgAnalyser/index.js";
+import { scheduleJob } from "node-schedule";
 
 // проверка кол-ва аргументов
 if (process.argv.length - 2 < 1) {
@@ -25,28 +28,64 @@ const logger = await Logger.make(
 
 const schapi = new SchApi(config.api_address)
 const db = new DB(config.pg_connection_string, logger)
+const msgAnalyser = new MsgAnalyser()
+const bot = new Bot(msgAnalyser, schapi, db, logger)
 
-const bot = await Bot.make(
-    db,
-    schapi,
-    config.tgbot_token,
-    logger,
-)
+const tgbot = new TgBot(config.tg.token, db.pool)
+
+const sendFuncs = {
+    'tg': tgbot.mailingSend.bind(tgbot),
+}
+
+// создание задач рассылки
+scheduleJob('0 7 * 1-6,9-12 1-6', async () => {
+    try {
+        await bot.startMailing(sendFuncs, new Date(), '📕 Расписание занятий на сегодня')
+    } catch (e) {
+        console.error(e)
+        logger.logToChat('бот. рассылка сегодня', e)
+    }
+});
+scheduleJob('0 19 * 1-6,9-12 0-5', async () => {
+    try {
+        const date = new Date()
+        date.setDate(date.getDate() + 1)
+
+        await bot.startMailing(sendFuncs, date, '📗 Расписание занятий на завтра')
+    } catch (e) {
+        console.error(e)
+        logger.logToChat('бот. рассылка сл день', e)
+    }
+});
+
 
 // запуск бота
-await bot.start(config.skip_startup_burst)
+await tgbot.start(bot.router.bind(bot), config.skip_startup_burst)
 
 
 type config = {
+    /** описание конфигурации */
     description: string,
-    tgbot_token: string,
+    /** адрес апи расписания */
     api_address: string,
+    /** URI подключения к базе */
     pg_connection_string: string,
+    /** пропустить накопившиеся в ботах запросы при старте? */
     skip_startup_burst: boolean,
 
+    /** специфичные для тг бота настройки */
+    tg: {
+        /** токен тг бота */
+        token: string,
+    },
+    
+    /** настройки логгера */
     logger: {
+        /** токен тг бота для отправки ошибок */
         tgbot_token: string,
+        /** id чата для отправки ошибок */
         chat_id: number,
+        /** файл для лога запросов */
         msgdump_file: string,
     },
 };

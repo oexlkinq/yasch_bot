@@ -26,26 +26,22 @@ export class Logger {
         return new Logger(chat_id, tgbot, limiter, stream)
     }
 
-    logToChat(title: string, e?: unknown) {
+    logToChat(scope: string, e?: unknown) {
         this.limiter.schedule(
             () => this.tgbot.sendMessage(
                 this.chat_id,
-                title + ((e === undefined) ? '' : `\n<code>${String(e)}</code>`),
+                scope + ((e === undefined) ? '' : `\n<code>${String(e)}</code>`),
                 { parse_mode: 'HTML' },
             )
         ).catch((e) => console.error(new Error('(Logger) Не удалось отправить оповещение об ошибке', {cause: e})))
     }
 
-    dumpMsg(msg: TelegramBot.Message, reply: string) {
+    dumpRequest(requestInfo: string, response: string, dumpType = 'msgdump') {
         const text = [
             new Date().toISOString(),
-            'msgdump',
-            msg.chat.id,
-            msg.from?.id ?? '-',
-            msg.from?.username ?? '-',
-            msg.from?.first_name ?? '-',
-            msg.text ?? '-',
-            reply.replaceAll('\n', '#').slice(0, 50),
+            dumpType,
+            requestInfo,
+            response.replaceAll('\n', '#').slice(0, 50),
         ].join('\t~') + '\n'
 
         this.msgDumpStream.write(text)

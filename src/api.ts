@@ -1,4 +1,4 @@
-import { Monday } from "../utils/monday.js";
+import { Monday } from "./utils/monday.js";
 
 export class SchApi {
     url: URL;
