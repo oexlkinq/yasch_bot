@@ -1,12 +1,15 @@
-import TelegramBot from "node-telegram-bot-api"
 import Bottleneck from "bottleneck"
 import { Pool } from "pg"
 import { User } from "../db.js"
 import { Bot } from "../baseBot/index.js"
 import { PlatformSpecificBot } from "./index.js"
 
+import { Telegraf, TelegramError } from "telegraf"
+import { Message, ReplyKeyboardMarkup } from "telegraf/types"
+import { message } from "telegraf/filters"
+
 export class TgBot implements PlatformSpecificBot {
-    tgbot: TelegramBot
+    bot: Telegraf
     generalLimiter: Bottleneck
     mailingLimiter: Bottleneck
 
@@ -14,7 +17,7 @@ export class TgBot implements PlatformSpecificBot {
         token: string,
         public pool: Pool,
     ) {
-        this.tgbot = new TelegramBot(token)
+        this.bot = new Telegraf(token)
         this.generalLimiter = new Bottleneck({
             maxConcurrent: 30,
             reservoir: 30,
@@ -28,18 +31,15 @@ export class TgBot implements PlatformSpecificBot {
         this.mailingLimiter.chain(this.generalLimiter)
     }
 
-    mailingSend(user_id: number, text: string) {
+    mailingSend(chat_id: number, text: string) {
         return this.mailingLimiter.schedule(async () => {
             try {
-                await this.tgbot.sendMessage(user_id, text)
+                await this.bot.telegram.sendMessage(chat_id, text)
             } catch (e) {
-                // https://github.com/yagop/node-telegram-bot-api/blob/master/doc/usage.md#error-handling
-                if (e instanceof Object && 'code' in e && e.code === 'ETELEGRAM') {
-                    // @ts-ignore TODO
-                    const error_code = e.response?.body?.error_code
-                    if ([400, 403].includes(error_code)) {
-                        await User.drop(this.pool, user_id, 'tg')
-                        console.warn(`(tg) user ${user_id} was dropped`)
+                if (e instanceof TelegramError) {
+                    if ([400, 403].includes(e.code)) {
+                        await User.drop(this.pool, chat_id, 'tg')
+                        console.warn(`(tg) user ${chat_id} was dropped`)
 
                         return
                     }
@@ -55,16 +55,14 @@ export class TgBot implements PlatformSpecificBot {
         if (skipStartupBurst) {
             console.log('(tg) skip burst...');
 
-            const updates = await this.tgbot.getUpdates({
-                offset: -100,
-                allowed_updates: ['message'],
-            })
+            const updates = await this.bot.telegram.getUpdates(0, 0, -100, ['message'])
 
             updates.forEach(update => {
-                const msg = update.message
-                if (!msg) {
+                if(!('message' in update && 'text' in update.message)){
                     return
                 }
+
+                const msg = update.message
 
                 console.log(`(tg) ${TgBot.senderOf(msg)}: ${msg.text ?? '__nothing__'}`)
             })
@@ -72,7 +70,7 @@ export class TgBot implements PlatformSpecificBot {
 
         // обновить список команд
         console.log('(tg) update commands...');
-        await this.tgbot.setMyCommands([
+        await this.bot.telegram.setMyCommands([
             {
                 command: 'start',
                 description: 'Короткая справка + показать кнопки',
@@ -80,22 +78,17 @@ export class TgBot implements PlatformSpecificBot {
         ])
 
         // прикрепить обработчик сообщений
-        this.tgbot.on('message', async (msg) => {
-            if (!msg.text) {
-                return
-            }
-
+        this.bot.on(message('text'), async (ctx) => {
             const response = await router(
-                (msg.text.startsWith('/start')) ? { start: true } : {
-                    text: msg.text,
-                    from: 'tg: ' + TgBot.senderOf(msg),
+                (ctx.text.startsWith('/start')) ? { start: true } : {
+                    text: ctx.text,
+                    from: 'tg: ' + TgBot.senderOf(ctx.msg),
                 },
-                () => User.make(this.pool, msg.chat.id, 'tg'),
+                () => User.make(this.pool, ctx.chat.id, 'tg'),
             )
             
             await this.generalLimiter.schedule(
-                () => this.tgbot.sendMessage(
-                    msg.chat.id,
+                () => ctx.reply(
                     response,
                     { reply_markup: TgBot.keyboardReplyMarkup },
                 )
@@ -104,24 +97,22 @@ export class TgBot implements PlatformSpecificBot {
 
         // запуск обработки сообщений
         console.log('(tg) start polling...')
-        return this.tgbot.startPolling({
-            polling: true,
-        })
+        return this.bot.launch()
     }
 
-    static senderOf(msg: TelegramBot.Message) {
+    static senderOf(msg: Message) {
         if (msg.from) {
             if (msg.from.username) {
                 return '@' + msg.from.username
             } else {
-                return `${msg.from.first_name} ${msg.from.last_name}`
+                return `${msg.from.first_name} ${msg.from.last_name ?? ''}`
             }
         } else {
             return msg.chat.type
         }
     }
 
-    static keyboardReplyMarkup: TelegramBot.ReplyKeyboardMarkup = {
+    static keyboardReplyMarkup: ReplyKeyboardMarkup = {
         keyboard: [
             [
                 { text: 'Сегодня' },

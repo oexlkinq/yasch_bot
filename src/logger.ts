@@ -1,18 +1,18 @@
 import { open } from 'node:fs/promises';
 import { WriteStream } from 'node:fs'
-import TelegramBot from 'node-telegram-bot-api';
+import { Telegraf } from 'telegraf';
 import Bottleneck from 'bottleneck';
 
 export class Logger {
     private constructor(
         public chat_id: number,
-        public tgbot: TelegramBot,
+        public tgbot: Telegraf,
         public limiter: Bottleneck,
         private msgDumpStream: WriteStream,
     ) { }
 
     static async make(token: string, chat_id: number, msgDumpFile: string) {
-        const tgbot = new TelegramBot(token)
+        const tgbot = new Telegraf(token)
         const limiter = new Bottleneck({
             maxConcurrent: 20,
             reservoir: 20,
@@ -28,7 +28,7 @@ export class Logger {
 
     logToChat(scope: string, e?: unknown) {
         this.limiter.schedule(
-            () => this.tgbot.sendMessage(
+            () => this.tgbot.telegram.sendMessage(
                 this.chat_id,
                 scope + ((e === undefined) ? '' : `\n<code>${String(e)}</code>`),
                 { parse_mode: 'HTML' },
