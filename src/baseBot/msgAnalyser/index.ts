@@ -62,7 +62,7 @@ export class MsgAnalyser {
     analyse(msg: string) {
         const msgLC = msg.toLocaleLowerCase()
     
-        let msgChunks = msgLC.split(' ')
+        let msgChunks = msgLC.trim().split(/\s+/)
         const chunksInfoByType = new Map<chunkType, { index: number, value: chunkValueTypes[chunkType] }>()
     
         for (let i = 0; i < msgChunks.length; i++) {

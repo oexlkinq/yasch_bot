@@ -15,16 +15,16 @@ export class Bot {
 		public logger: Logger,
 	) { }
 
-	async router(request: { text: string, from: string }, getUser: getUser) {
+	async router(request: { text: string, from: string } | { start: true }, getUser: getUser) {
 		let text = ''
 
 		try {
+			if ('start' in request) {
+				return text = texts.shortHelp
+			}
+			
 			if (request.text.length > 100) {
 				return text = '⚠️ Слишком длинный запрос'
-			}
-
-			if (request.text.startsWith('/start')) {
-				return text = texts.shortHelp
 			}
 
 			const analyseRes = this.msgAnalyser.analyse(request.text)
@@ -67,10 +67,7 @@ export class Bot {
 			return text = '⚠️ Произошла неизвестная ошибка'
 		} finally {
 			this.logger.dumpRequest(
-				[
-					request.text,
-					request.from,
-				].join('#'),
+				JSON.stringify(request),
 				text,
 			)
 		}

@@ -3,9 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { DB } from "./db.js";
 import { SchApi } from "./api.js";
 import { Logger } from "./logger.js";
-import { TgBot } from "./platforms/tg.js";
 import { MsgAnalyser } from "./baseBot/msgAnalyser/index.js";
 import { scheduleJob } from "node-schedule";
+import { TgBot } from "./platforms/tg.js";
+import { VkBot } from "./platforms/vk.js";
 
 // проверка кол-ва аргументов
 if (process.argv.length - 2 < 1) {
@@ -17,7 +18,7 @@ if (process.argv.length - 2 < 1) {
 // получение конфигурации
 const rawconfig = await readFile(process.argv[2 + 0], { encoding: 'utf-8' });
 const config = JSON.parse(rawconfig) as config;
-console.log(`conf desc: ${config.description}`);
+console.log(`--conf desc: ${config.description}`);
 
 // подготовка компонентов
 const logger = await Logger.make(
@@ -32,9 +33,11 @@ const msgAnalyser = new MsgAnalyser()
 const bot = new Bot(msgAnalyser, schapi, db, logger)
 
 const tgbot = new TgBot(config.tg.token, db.pool)
+const vkbot = new VkBot(config.vk.token, config.vk.group_id, db.pool)
 
 const sendFuncs = {
     'tg': tgbot.mailingSend.bind(tgbot),
+    'vk': vkbot.mailingSend.bind(vkbot),
 }
 
 // создание задач рассылки
@@ -58,10 +61,12 @@ scheduleJob('0 19 * 1-6,9-12 0-5', async () => {
     }
 });
 
+// @ts-ignore
+await bot.router({ text: 'звонки ради подогреть роутер', from: 'admin' }, async () => 'my bad')
 
 // запуск бота
-await tgbot.start(bot.router.bind(bot), config.skip_startup_burst)
-
+tgbot.start(bot.router.bind(bot), config.skip_startup_burst)
+vkbot.start(bot.router.bind(bot), config.skip_startup_burst)
 
 type config = {
     /** описание конфигурации */
@@ -78,7 +83,14 @@ type config = {
         /** токен тг бота */
         token: string,
     },
-    
+    /** специфичные для вк бота настройки */
+    vk: {
+        /** токен вк бота */
+        token: string,
+        /** id сообщества от лица которого работает бот */
+        group_id: number,
+    },
+
     /** настройки логгера */
     logger: {
         /** токен тг бота для отправки ошибок */

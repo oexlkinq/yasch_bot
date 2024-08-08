@@ -3,9 +3,9 @@ import Bottleneck from "bottleneck"
 import { Pool } from "pg"
 import { User } from "../db.js"
 import { Bot } from "../baseBot/index.js"
-import { platforms, PlatformSpecificBot } from "./index.js"
+import { PlatformSpecificBot } from "./index.js"
 
-export class TgBot implements PlatformSpecificBot{
+export class TgBot implements PlatformSpecificBot {
     tgbot: TelegramBot
     generalLimiter: Bottleneck
     mailingLimiter: Bottleneck
@@ -39,7 +39,7 @@ export class TgBot implements PlatformSpecificBot{
                     const error_code = e.response?.body?.error_code
                     if ([400, 403].includes(error_code)) {
                         await User.drop(this.pool, user_id, 'tg')
-                        console.warn(`user ${user_id} was dropped`)
+                        console.warn(`(tg) user ${user_id} was dropped`)
 
                         return
                     }
@@ -86,13 +86,13 @@ export class TgBot implements PlatformSpecificBot{
             }
 
             const response = await router(
-                {
+                (msg.text.startsWith('/start')) ? { start: true } : {
                     text: msg.text,
-                    from: 'tg:' + TgBot.senderOf(msg),
+                    from: 'tg: ' + TgBot.senderOf(msg),
                 },
                 () => User.make(this.pool, msg.chat.id, 'tg'),
             )
-
+            
             await this.generalLimiter.schedule(
                 () => this.tgbot.sendMessage(
                     msg.chat.id,

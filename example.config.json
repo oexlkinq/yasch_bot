@@ -7,6 +7,10 @@
     "tg": {
         "token": "123:abc"
     },
+    "vk": {
+        "token": "vk1.a.kkjDs4f_has+f",
+        "group_id": 123456789
+    },
 
     "logger": {
         "tgbot_token": "234:bcd",

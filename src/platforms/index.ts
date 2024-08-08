@@ -6,4 +6,4 @@ export abstract class PlatformSpecificBot {
     abstract mailingSend(user_id: number, text: string): Promise<void>
 }
 
-export type platforms = 'tg'
+export type platforms = 'tg' | 'vk'
