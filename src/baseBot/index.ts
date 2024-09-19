@@ -181,6 +181,10 @@ export class Bot {
 	}
 
 	async feedbackHandler(text: string, sender: string): Promise<string> {
+		if (text.length === 0) {
+			return '⚠️ Чтобы отправить отзыв, нужно написать слово "отзыв" и после него текст, который вы хотите отправить'
+		}
+
 		this.logger.logToChat(`отзыв от ${sender}\n${text}`)
 
 		return 'ℹ️ Отзыв отправлен'
