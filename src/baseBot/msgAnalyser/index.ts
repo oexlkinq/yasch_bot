@@ -342,7 +342,7 @@ export class MsgAnalyser {
                 [['справка', 'help'], 'help'],
                 [['формат', 'format'], 'format'],
                 [['рассылка', 'mute'], 'mute'],
-                [['забудь', 'wipe', 'optout'], 'optout'],
+                [['сброс', 'reset', 'wipe', 'optout'], 'optout'],
                 [['статус', 'stats'], 'stats'],
             ],
         },

@@ -112,7 +112,7 @@ export class Bot {
 				const { available } = await this.schapi.groupsTest(target.value)
 
 				await user.setGroup(target.value)
-				return ((available) ? '' : '⚠️ Расписание для указанной группы ранее никогда не публиковалось\n\n') + makeText(user)
+				return ((available) ? '' : '⚠️ Расписание для указанной группы ранее никогда не публиковалось. Проверьте правильность ввода\n\n') + makeText(user)
 
 			case "query":
 				await user.setQuery(target.value)
@@ -122,7 +122,7 @@ export class Bot {
 		function makeText(user: User) {
 			const group = user.group_name ?? '-'
 			const query = user.query ?? '-'
-			return `ℹ️ Настройки рассылки обновлены\nТекущие настройки:\n\nГруппа: ${group}\nПоисковый запрос: ${query}`
+			return `ℹ️ Настройки подписки обновлены\nТекущие настройки:\n\nГруппа: ${group}\nПоисковый запрос: ${query}`
 		}
 	}
 
