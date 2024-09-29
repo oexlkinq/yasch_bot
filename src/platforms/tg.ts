@@ -123,6 +123,7 @@ export class TgBot implements PlatformSpecificBot {
                 { text: 'Справка' },
                 { text: 'Звонки' },
                 { text: 'Статус' },
+                { text: 'Сл неделя' },
             ],
         ],
         resize_keyboard: true,

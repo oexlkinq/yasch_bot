@@ -85,5 +85,6 @@ export class VkBot implements PlatformSpecificBot {
         .textButton({ label: 'Справка' })
         .textButton({ label: 'Звонки' })
         .textButton({ label: 'Статус' })
+        .textButton({ label: 'Сл неделя' })
         .row()
 }
