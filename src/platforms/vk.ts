@@ -57,10 +57,14 @@ export class VkBot implements PlatformSpecificBot {
                 return
             }
             
+            const from = 'vk: ' + msg.senderId
             const response = await router(
-                (msg.text.toLocaleLowerCase() === 'начать') ? { start: true } : {
+                (msg.text.toLocaleLowerCase() === 'начать') ? {
+                    start: true,
+                    from, 
+                } : {
                     text: msg.text.replace(/\[.*?\]/, ''),
-                    from: 'vk: ' + msg.senderId,
+                    from,
                 },
                 () => User.make(this.pool, msg.peerId, 'vk'),
             )

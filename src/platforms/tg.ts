@@ -79,10 +79,14 @@ export class TgBot implements PlatformSpecificBot {
 
         // прикрепить обработчик сообщений
         this.bot.on(message('text'), async (ctx) => {
+            const from = 'tg: ' + TgBot.senderOf(ctx.msg)
             const response = await router(
-                (ctx.text.startsWith('/start')) ? { start: true } : {
+                (ctx.text.startsWith('/start')) ? {
+                    start: true,
+                    from,
+                } : {
                     text: ctx.text,
-                    from: 'tg: ' + TgBot.senderOf(ctx.msg),
+                    from,
                 },
                 () => User.make(this.pool, ctx.chat.id, 'tg'),
             )
@@ -101,14 +105,15 @@ export class TgBot implements PlatformSpecificBot {
     }
 
     static senderOf(msg: Message) {
+        const idInfo = ` (${msg.chat.id})`
         if (msg.from) {
             if (msg.from.username) {
-                return '@' + msg.from.username
+                return '@' + msg.from.username + idInfo
             } else {
-                return `${msg.from.first_name} ${msg.from.last_name ?? ''}`
+                return `${msg.from.first_name} ${msg.from.last_name ?? ''}` + idInfo
             }
         } else {
-            return msg.chat.type
+            return msg.chat.type + idInfo
         }
     }
 

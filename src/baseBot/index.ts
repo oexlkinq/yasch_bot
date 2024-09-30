@@ -15,7 +15,7 @@ export class Bot {
 		public logger: Logger,
 	) { }
 
-	async router(request: { text: string, from: string } | { start: true }, getUser: getUser) {
+	async router(request: { text: string, from: string } | { start: true, from: string }, getUser: getUser) {
 		let text = ''
 
 		try {
