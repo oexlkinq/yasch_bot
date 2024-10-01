@@ -32,7 +32,7 @@ const db = new DB(config.pg_connection_string, logger)
 const msgAnalyser = new MsgAnalyser()
 const bot = new Bot(msgAnalyser, schapi, db, logger)
 
-const tgbot = new TgBot(config.tg.token, db.pool)
+const tgbot = new TgBot(config.tg.token, db.pool, logger)
 const vkbot = new VkBot(config.vk.token, config.vk.group_id, db.pool)
 
 const sendFuncs = {

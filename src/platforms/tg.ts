@@ -7,6 +7,7 @@ import { PlatformSpecificBot } from "./index.js"
 import { Telegraf, TelegramError } from "telegraf"
 import { Message, ReplyKeyboardMarkup } from "telegraf/types"
 import { message } from "telegraf/filters"
+import { Logger } from "../logger.js"
 
 export class TgBot implements PlatformSpecificBot {
     bot: Telegraf
@@ -16,6 +17,7 @@ export class TgBot implements PlatformSpecificBot {
     constructor(
         token: string,
         public pool: Pool,
+        public logger: Logger,
     ) {
         this.bot = new Telegraf(token)
         this.generalLimiter = new Bottleneck({
@@ -98,6 +100,12 @@ export class TgBot implements PlatformSpecificBot {
                 )
             )
         });
+
+        // ловить ошибки и отправлять их в чат
+        this.bot.catch((err, ctx) => {
+            this.logger.logToChat('bot.catch', err)
+            console.error(err, ctx)
+        })
 
         // запуск обработки сообщений
         console.log('(tg) start polling...')
