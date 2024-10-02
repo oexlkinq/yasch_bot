@@ -38,12 +38,25 @@ export class Logger {
 
     dumpRequest(requestInfo: string, response: string, dumpType = 'msgdump') {
         const text = [
-            new Date().toISOString(),
+            Logger.datetimeToIsolikeString(new Date()),
             dumpType,
             requestInfo,
             response.replaceAll('\n', '#').slice(0, 50),
         ].join('\t~') + '\n'
 
         this.msgDumpStream.write(text)
+    }
+
+    static datetimeToIsolikeString(date: Date) {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+
+        const hour = String(date.getHours()).padStart(2, '0')
+        const minute = String(date.getMinutes()).padStart(2, '0')
+        const second = String(date.getSeconds()).padStart(2, '0')
+        const millis = String(date.getMilliseconds()).padStart(3, '0')
+
+        return `${year}-${month}-${day} ${hour}:${minute}:${second}.${millis}`
     }
 }
