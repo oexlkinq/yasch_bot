@@ -65,8 +65,8 @@ scheduleJob('0 19 * 1-6,9-12 0-5', async () => {
 await bot.router({ text: 'звонки ради подогреть роутер', from: 'admin' }, async () => 'my bad')
 
 // запуск бота
-tgbot.start(bot.router.bind(bot), config.skip_startup_burst)
-vkbot.start(bot.router.bind(bot), config.skip_startup_burst)
+tgbot.start(bot.router.bind(bot), config.allow_skip_startup_burst)
+vkbot.start(bot.router.bind(bot), config.allow_skip_startup_burst)
 
 type config = {
     /** описание конфигурации */
@@ -75,8 +75,8 @@ type config = {
     api_address: string,
     /** URI подключения к базе */
     pg_connection_string: string,
-    /** пропустить накопившиеся в ботах запросы при старте? */
-    skip_startup_burst: boolean,
+    /** разрешить пропускать накопившиеся в ботах запросы при старте? */
+    allow_skip_startup_burst: boolean,
 
     /** специфичные для тг бота настройки */
     tg: {

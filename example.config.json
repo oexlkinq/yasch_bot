@@ -2,7 +2,7 @@
     "description": "описание конфигурации",
     "api_address": "http://shgpi.edu.ru/sch_api",
     "pg_connection_string": "postgres://user:password@localhost/database_name",
-    "skip_startup_burst": true,
+    "allow_skip_startup_burst": true,
 
     "tg": {
         "token": "123:abc"

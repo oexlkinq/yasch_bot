@@ -5,7 +5,7 @@ import { Bot } from "../baseBot/index.js"
 import { PlatformSpecificBot } from "./index.js"
 
 import { Telegraf, TelegramError } from "telegraf"
-import { Message, ReplyKeyboardMarkup } from "telegraf/types"
+import { Message, ReplyKeyboardMarkup, Update } from "telegraf/types"
 import { message } from "telegraf/filters"
 import { Logger } from "../logger.js"
 
@@ -52,33 +52,7 @@ export class TgBot implements PlatformSpecificBot {
         })
     }
 
-    async start(router: Bot['router'], skipStartupBurst = true) {
-        // пропустить накопившиеся сообщения
-        if (skipStartupBurst) {
-            console.log('(tg) skip burst...');
-
-            const updates = await this.bot.telegram.getUpdates(0, 0, -100, ['message'])
-
-            updates.forEach(update => {
-                if(!('message' in update && 'text' in update.message)){
-                    return
-                }
-
-                const msg = update.message
-
-                console.log(`(tg) ${TgBot.senderOf(msg)}: ${msg.text ?? '__nothing__'}`)
-            })
-        }
-
-        // обновить список команд
-        console.log('(tg) update commands...');
-        await this.bot.telegram.setMyCommands([
-            {
-                command: 'start',
-                description: 'Короткая справка + показать кнопки',
-            }
-        ])
-
+    async start(router: Bot['router'], allowSkipStartupBurst = true) {
         // прикрепить обработчик сообщений
         this.bot.on(message('text'), async (ctx) => {
             const from = 'tg: ' + TgBot.senderOf(ctx.msg)
@@ -106,6 +80,67 @@ export class TgBot implements PlatformSpecificBot {
             this.logger.logToChat('bot.catch', err)
             console.error(err, ctx)
         })
+        
+        // обработать только последнее из накопившихся сообщений в каждом чате
+        if (allowSkipStartupBurst) {
+            console.log('(tg) process burst...');
+
+            let offset = 0
+            /** карта соответствий "чат - последний апдейт чата" */
+            const latestUpdatesOfChats = new Map<number, Update.MessageUpdate>()
+
+            while (true) {
+                const updates = await this.bot.telegram.getUpdates(0, 100, offset, ['message'])
+
+                if (updates.length === 0) {
+                    break
+                }
+    
+                for (const update of updates) {
+                    if (!('message' in update)) {
+                        continue
+                    }
+
+                    const chatId = update.message.chat.id
+                    const tempUpdateId = update.update_id
+
+                    const latestChatUpdate = latestUpdatesOfChats.get(chatId)
+                    // если это первый апдейт в этом чате, или текущий апдейт новее апдейта из карты, заменить апдейт в карте на текущий
+                    if (!latestChatUpdate || tempUpdateId > latestChatUpdate.update_id) {
+                        latestUpdatesOfChats.set(chatId, update)
+
+                        if (latestChatUpdate) {
+                            logRejectedUpdate(latestChatUpdate)
+                        }
+                    } else {
+                        logRejectedUpdate(update)
+                    }
+                    
+                    if (tempUpdateId > offset) {
+                        offset = tempUpdateId
+                    }
+                    
+                    function logRejectedUpdate(update: Update.MessageUpdate) {
+                        console.log(`(tg) (отброшено) ${TgBot.senderOf(update.message)}: ${('text' in update.message) ? update.message.text : '__nothing__'}`)
+                    }
+                }
+
+                // смещение должно быть на 1 больше чем id самого последнего обработанного апдейта
+                offset++
+            }
+
+            const updates = Array.from(latestUpdatesOfChats.values())
+            await Promise.all(updates.map((update) => this.bot.handleUpdate(update)))
+        }
+
+        // обновить список команд
+        console.log('(tg) update commands...');
+        await this.bot.telegram.setMyCommands([
+            {
+                command: 'start',
+                description: 'Короткая справка + показать кнопки',
+            }
+        ])
 
         // запуск обработки сообщений
         console.log('(tg) start polling...')

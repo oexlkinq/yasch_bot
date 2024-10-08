@@ -46,7 +46,7 @@ export class VkBot implements PlatformSpecificBot {
         })
     }
 
-    async start(router: Bot['router'], skipStartupBurst = true) {
+    async start(router: Bot['router'], allowSkipStartupBurst = true) {
         // прикрепить обработчик сообщений
         this.vk.updates.on('message_new', async (msg, next) => {
             if(msg.isOutbox){
