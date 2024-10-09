@@ -9,11 +9,7 @@ export class Formatter {
         let text = '';
 
         for (const day of days) {
-            if(day.pairs.length === 0){
-                continue
-            }
-
-            text += `📍 ${this.formatDate(day.date)}:\n` + this.formatPairs(day.pairs, presetIndex) + '\n'
+            text += `📍 ${this.formatDate(day.date)}:\n${this.formatPairs(day.pairs, presetIndex)}\n`
         }
 
         return text;
@@ -21,7 +17,7 @@ export class Formatter {
 
     static formatPairs(pairs: Pair[], presetIndex = 0) {
         if (pairs.length === 0) {
-            return '❌ Пары не найдены';
+            return '❌ Пары не найдены\n';
         }
 
         const preset = this.presets[presetIndex]
@@ -32,12 +28,12 @@ export class Formatter {
             if (preset.fillGaps) {
                 // добавлять окна, пока счётчик не дойдёт до номера тек пары
                 for (; expectedNum < pair.num; expectedNum++) {
-                    text += preset.pairTextGenerator({num: expectedNum, text: '-'}) + '\n'
+                    text += preset.pairTextGenerator({ num: expectedNum, text: '-' }) + '\n'
                 }
             }
 
             text += preset.pairTextGenerator(pair) + '\n'
-            
+
             expectedNum++
         }
 

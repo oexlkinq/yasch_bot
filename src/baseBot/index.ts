@@ -2,7 +2,7 @@ import { DB, dbUser, User } from "../db.js";
 import { Formatter } from "./formatter.js";
 import { actionsInfo, MsgAnalyser } from "./msgAnalyser/index.js";
 import { texts } from "./texts.js";
-import { pairsGetDateOptions, pairsGetTargetOptions, SchApi } from "../api.js";
+import { Day, pairsGetDateOptions, pairsGetTargetOptions, SchApi } from "../api.js";
 import { Monday } from "../utils/monday.js";
 import { Logger } from "../logger.js";
 import { platforms, PlatformSpecificBot } from "../platforms/index.js";
@@ -22,7 +22,7 @@ export class Bot {
 			if ('start' in request) {
 				return text = texts.shortHelp
 			}
-			
+
 			if (request.text.length > 100) {
 				return text = '⚠️ Слишком длинный запрос'
 			}
@@ -162,7 +162,40 @@ export class Bot {
 		const makeResponse = async (title: string, targetOptions: pairsGetTargetOptions) => {
 			let text = `📌 ${title}\n\n`
 
-			const days = await this.schapi.pairsGet(Object.assign(targetOptions, dateOptions))
+			let days = await this.schapi.pairsGet(Object.assign(targetOptions, dateOptions))
+
+			if (dateOptions.week) {
+				const monday = new Monday(dateOptions.date)
+
+				// создать массив только из пустых дней
+				let filledDays = new Array<Day>(6)
+
+				// заполнить его имеющимися днями
+				for (const day of days) {
+					const dayIndex = day.date.getDay() - 1
+
+					filledDays[dayIndex] = day
+				}
+
+				// заполнить окна днями без пар
+				for (let i = 0; i < 6; i++) {
+					const day = filledDays[i]
+
+					if (day) {
+						continue
+					}
+
+					const date = new Date(monday.date)
+					date.setDate(monday.date.getDate() + i)
+
+					filledDays[i] = {
+						date,
+						pairs: [],
+					}
+				}
+
+				days = filledDays
+			}
 
 			return text + Formatter.formatDays(days, user.format) + '\n'
 		}
