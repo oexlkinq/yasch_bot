@@ -115,14 +115,29 @@ export class Bot {
 				return ((available) ? '' : '⚠️ Расписание для указанной группы ранее никогда не публиковалось. Проверьте правильность ввода\n\n') + makeText(user)
 
 			case "query":
+				if (target.value.length < 3) {
+					return '⚠️ Поисковый запрос не может быть короче 3 символов'
+				}
+
+				let specialSymbolsCount = 0
+				for (let i = 0; i < target.value.length; i++) {
+					if (target.value[i] === '_' || target.value[i] === '%') {
+						specialSymbolsCount++
+					}
+				}
+				if (specialSymbolsCount / target.value.length > 0.25) {
+					return '⚠️ Слишком общий запрос. Кол-во специальных символов не может быть больше четверти длины строки'
+				}
+
 				await user.setQuery(target.value)
 				return makeText(user)
 		}
 
 		function makeText(user: User) {
-			const group = user.group_name ?? '-'
-			const query = user.query ?? '-'
-			return `ℹ️ Настройки подписки обновлены\nТекущие настройки:\n\nГруппа: ${group}\nПоисковый запрос: ${query}`
+			const group = (user.group_name) ? `"${user.group_name}"` : 'нет подписки'
+			const query = (user.query) ? `"${user.query}"` : 'нет подписки'
+			const mailingStatus = (user.notify) ? 'включена' : 'отключена'
+			return `ℹ️ Настройки подписки обновлены\nТекущие настройки:\n\nГруппа: ${group}\nПоисковый запрос: ${query}\nРассылка: ${mailingStatus}`
 		}
 	}
 
