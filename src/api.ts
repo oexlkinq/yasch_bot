@@ -99,6 +99,16 @@ export class SchApi {
 
         const resp = await fetch(this.url, { method: 'post', body });
         if (!resp.ok) {
+            if (resp.body) {
+                const text = await resp.text()
+                try {
+                    const res = JSON.parse(text)
+                    console.error('содержимое ответа:', res)
+                } catch(e) {
+                    console.error('содержимое ответа:', text)
+                }
+            }
+
             throw new Error('Ошибка при выполнении запроса к API: ' + resp.status)
         }
 
