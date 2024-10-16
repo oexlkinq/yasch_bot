@@ -66,21 +66,43 @@ export class TgBot implements PlatformSpecificBot {
                 },
                 () => User.make(this.pool, ctx.chat.id, 'tg'),
             )
-            
-            await this.generalLimiter.schedule(
-                () => ctx.reply(
-                    response,
-                    { reply_markup: TgBot.keyboardReplyMarkup },
-                )
-            )
+
+            // пытаться отправить сообщение до 3 раз
+            for (let retries = 0; retries < 3; retries++) {
+                try {
+                    await this.generalLimiter.schedule(
+                        async () => await ctx.reply(
+                            response,
+                            { reply_markup: TgBot.keyboardReplyMarkup },
+                        )
+                    )
+
+                    // закончить попытки при первой успешной отправке
+                    break
+                } catch (e) {
+                    // попытаться снова если ещё можно и ошибка ECONNRESET
+                    if (
+                        retries < 3
+                        && e instanceof Error
+                        && 'errno' in e
+                        && e.errno === 'ECONNRESET'
+                    ) {
+                        continue
+                    }
+
+                    // закончить попытки при любых иных ошибках. ошибка будет перехвачена в bot.catch
+                    throw e
+                }
+            }
         });
 
         // ловить ошибки и отправлять их в чат
         this.bot.catch((err, ctx) => {
+
             this.logger.logToChat('bot.catch', err)
             console.error(err, ctx)
         })
-        
+
         // обработать только последнее из накопившихся сообщений в каждом чате
         if (allowSkipStartupBurst) {
             console.log('(tg) process burst...');
@@ -95,7 +117,7 @@ export class TgBot implements PlatformSpecificBot {
                 if (updates.length === 0) {
                     break
                 }
-    
+
                 for (const update of updates) {
                     if (!('message' in update)) {
                         continue
@@ -115,11 +137,11 @@ export class TgBot implements PlatformSpecificBot {
                     } else {
                         logRejectedUpdate(update)
                     }
-                    
+
                     if (tempUpdateId > offset) {
                         offset = tempUpdateId
                     }
-                    
+
                     function logRejectedUpdate(update: Update.MessageUpdate) {
                         console.log(`(tg) (отброшено) ${TgBot.senderOf(update.message)}: ${('text' in update.message) ? update.message.text : '__nothing__'}`)
                     }
