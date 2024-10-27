@@ -2,7 +2,7 @@ import { DB, dbUser, User } from "../db.js";
 import { Formatter } from "./formatter.js";
 import { actionsInfo, MsgAnalyser } from "./msgAnalyser/index.js";
 import { texts } from "./texts.js";
-import { Day, pairsGetDateOptions, pairsGetTargetOptions, SchApi } from "../api.js";
+import { Day, pairsGetDateOptions, pairsGetTargetOptions, SchApi } from "node-sch-api";
 import { Monday } from "../utils/monday.js";
 import { Logger } from "../logger.js";
 import { platforms, PlatformSpecificBot } from "../platforms/index.js";
@@ -94,7 +94,7 @@ export class Bot {
 				return 'ℹ️ Настройки рассылок сброшены'
 
 			case "stats":
-				const updates = await this.schapi.updatesGet(new Monday())
+				const updates = await this.schapi.updates.get(new Monday())
 				return 'ℹ️ Расписание на текущую неделю доступно для следующих факультетов: ' + updates.map(item => item.faculty_short).join(', ')
 		}
 	}
@@ -109,7 +109,7 @@ export class Bot {
 
 		switch (target.type) {
 			case "group":
-				const { available } = await this.schapi.groupsTest(target.value)
+				const { available } = await this.schapi.groups.test(target.value)
 
 				await user.setGroup(target.value)
 				return ((available) ? '' : '⚠️ Расписание для указанной группы ранее никогда не публиковалось. Проверьте правильность ввода\n\n') + makeText(user)
@@ -177,7 +177,7 @@ export class Bot {
 		const makeResponse = async (title: string, targetOptions: pairsGetTargetOptions) => {
 			let text = `📌 ${title}\n\n`
 
-			let days = await this.schapi.pairsGet(Object.assign(targetOptions, dateOptions))
+			let days = await this.schapi.pairs.get(Object.assign(targetOptions, dateOptions))
 
 			if (dateOptions.week) {
 				const monday = new Monday(dateOptions.date)
@@ -267,7 +267,7 @@ export class Bot {
 		}
 
 		// запрос расписания по уникальным подпискам
-		const pairsOfAllSubs = await this.schapi.pairsBulkGet(
+		const pairsOfAllSubs = await this.schapi.pairs.bulkGet(
 			date,
 			{
 				groupName: Array.from(subsOfGroup.keys()),

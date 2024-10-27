@@ -1,7 +1,7 @@
 import { Bot } from "./baseBot/index.js";
 import { readFile } from 'node:fs/promises';
 import { DB } from "./db.js";
-import { SchApi } from "./api.js";
+import { SchApi } from "node-sch-api";
 import { Logger } from "./logger.js";
 import { MsgAnalyser } from "./baseBot/msgAnalyser/index.js";
 import { scheduleJob } from "node-schedule";
