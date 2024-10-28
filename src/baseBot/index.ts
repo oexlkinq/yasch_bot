@@ -239,6 +239,12 @@ export class Bot {
 	}
 
 	async startMailing(sendFuncs: { [key in platforms]: PlatformSpecificBot['mailingSend'] }, date: Date, title: string) {
+		const updates = await this.schapi.updates.get(new Monday(date))
+		// не делать рассылку, если никакое расписание не доступно
+		if (updates.length === 0) {
+			return
+		}
+
 		// получить список всех пользователей, у которых включена рассылка
 		const users = await User.getAllSubs(this.db.pool)
 
@@ -267,7 +273,7 @@ export class Bot {
 		}
 
 		// запрос расписания по уникальным подпискам
-		const pairsOfAllSubs = await this.schapi.pairs.bulkGet(
+		const pairsOfAllSubs = await this.schapi.pairs.confirmableBulkGet(
 			date,
 			{
 				groupName: Array.from(subsOfGroup.keys()),
@@ -281,10 +287,11 @@ export class Bot {
 		const errors: unknown[] = []
 		const send = (user: dbUser, text: string) => sendFuncs[user.platform](user.id, text).catch(e => { errors.push(e) })
 
-		for (const [group, pairs] of pairsOfAllSubs.groupName) {
-			if (pairs.length === 0) {
+		for (const [group, pairsInfo] of pairsOfAllSubs.groupName) {
+			if (!pairsInfo.available) {
 				continue
 			}
+			const { pairs } = pairsInfo
 
 			const users = subsOfGroup.get(group) ?? []
 
@@ -306,12 +313,12 @@ export class Bot {
 			}
 		}
 
-		for (const [query, pairs] of pairsOfAllSubs.query) {
+		for (const [query, pairsInfo] of pairsOfAllSubs.query) {
 			const users = subsOfQuery.get(query) ?? []
 
-			if (pairs.length === 0) {
+			if (!pairsInfo.available) {
 				for (const user of users) {
-					const text = defferedMessages.get(user.id)
+					const text = deferredMessages.get(user.id)
 
 					if (text) {
 						tasks.push(send(user, text))
@@ -320,6 +327,7 @@ export class Bot {
 
 				continue
 			}
+			const { pairs } = pairsInfo
 
 			const cacheByFormat = new Array<string>(Formatter.presets.length)
 			for (const user of users) {
