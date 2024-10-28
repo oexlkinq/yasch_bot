@@ -276,7 +276,7 @@ export class Bot {
 		)
 
 		// генерация и рассылка расписания
-		const defferedMessages = new Map<number, string>()
+		const deferredMessages = new Map<number, string>()
 		const tasks: Promise<any>[] = []
 		const errors: unknown[] = []
 		const send = (user: dbUser, text: string) => sendFuncs[user.platform](user.id, text).catch(e => { errors.push(e) })
@@ -298,7 +298,7 @@ export class Bot {
 
 				// если есть ещё и подписка на поиск, то сохранить для отправки одним сообщением
 				if (user.query) {
-					defferedMessages.set(user.id, text)
+					deferredMessages.set(user.id, text)
 				} else {
 					// иначе отправить сразу же
 					tasks.push(send(user, text))
@@ -329,7 +329,7 @@ export class Bot {
 					cacheByFormat[user.format] = text
 				}
 
-				const stMsgPart = defferedMessages.get(user.id)
+				const stMsgPart = deferredMessages.get(user.id)
 				if (stMsgPart) {
 					text = `${stMsgPart}\n${text}`
 				} else {
