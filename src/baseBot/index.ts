@@ -177,7 +177,11 @@ export class Bot {
 		const makeResponse = async (title: string, targetOptions: pairsGetTargetOptions) => {
 			let text = `📌 ${title}\n\n`
 
-			let days = await this.schapi.pairs.get(Object.assign(targetOptions, dateOptions))
+			const daysInfo = await this.schapi.pairs.confirmableGet(Object.assign(targetOptions, dateOptions))
+			if (!daysInfo.available) {
+				return text + '⚠️ Расписание для соответствующей запросу недели недоступно'
+			}
+			let { days } = daysInfo
 
 			if (dateOptions.week) {
 				const monday = new Monday(dateOptions.date)
