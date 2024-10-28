@@ -85,10 +85,10 @@ export class VkBot implements PlatformSpecificBot {
         .textButton({ label: 'Сегодня' })
         .textButton({ label: 'Завтра' })
         .textButton({ label: 'Неделя' })
+        .textButton({ label: 'Сл неделя' })
         .row()
         .textButton({ label: 'Справка' })
         .textButton({ label: 'Звонки' })
         .textButton({ label: 'Статус' })
-        .textButton({ label: 'Сл неделя' })
         .row()
 }

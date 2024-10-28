@@ -188,12 +188,12 @@ export class TgBot implements PlatformSpecificBot {
                 { text: 'Сегодня' },
                 { text: 'Завтра' },
                 { text: 'Неделя' },
+                { text: 'Сл неделя' },
             ],
             [
                 { text: 'Справка' },
                 { text: 'Звонки' },
                 { text: 'Статус' },
-                { text: 'Сл неделя' },
             ],
         ],
         resize_keyboard: true,
