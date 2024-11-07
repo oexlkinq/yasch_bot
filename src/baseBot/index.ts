@@ -242,12 +242,19 @@ export class Bot {
 		return 'ℹ️ Отзыв отправлен'
 	}
 
-	async startMailing(sendFuncs: { [key in platforms]: PlatformSpecificBot['mailingSend'] }, date: Date, title: string) {
+	async startMailing(sendFuncs: { [key in platforms]: PlatformSpecificBot['mailingSend'] }, nextday: boolean) {
+		const date = new Date()
+		if (nextday) {
+			date.setDate(date.getDate() + 1)
+		}
+
 		const updates = await this.schapi.updates.get(new Monday(date))
 		// не делать рассылку, если никакое расписание не доступно
 		if (updates.length === 0) {
 			return
 		}
+
+		const title = `${(nextday) ? '📗' : '📕'} Расписание занятий на ${(nextday) ? 'завтра' : 'сегодня'}`
 
 		// получить список всех пользователей, у которых включена рассылка
 		const users = await User.getAllSubs(this.db.pool)

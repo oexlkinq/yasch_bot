@@ -43,7 +43,7 @@ const sendFuncs = {
 // создание задач рассылки
 scheduleJob('0 7 * 1-6,9-12 1-6', async () => {
     try {
-        await bot.startMailing(sendFuncs, new Date(), '📕 Расписание занятий на сегодня')
+        await bot.startMailing(sendFuncs, false)
     } catch (e) {
         console.error(e)
         logger.logToChat('бот. рассылка сегодня', e)
@@ -51,10 +51,7 @@ scheduleJob('0 7 * 1-6,9-12 1-6', async () => {
 });
 scheduleJob('0 19 * 1-6,9-12 0-5', async () => {
     try {
-        const date = new Date()
-        date.setDate(date.getDate() + 1)
-
-        await bot.startMailing(sendFuncs, date, '📗 Расписание занятий на завтра')
+        await bot.startMailing(sendFuncs, true)
     } catch (e) {
         console.error(e)
         logger.logToChat('бот. рассылка сл день', e)
