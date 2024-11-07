@@ -58,6 +58,13 @@ scheduleJob('0 19 * 1-6,9-12 0-5', async () => {
     }
 });
 
+// запуск рассылки для тестирования
+if (process.argv.includes('mailnow')) {
+    console.log('--запуск тестовой рассылки')
+
+    await bot.startMailing(sendFuncs, process.argv.includes('nextday'))
+}
+
 // @ts-ignore
 await bot.router({ text: 'звонки ради подогреть роутер', from: 'admin' }, async () => 'my bad')
 
