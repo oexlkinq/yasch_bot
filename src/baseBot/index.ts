@@ -292,70 +292,128 @@ export class Bot {
 			},
 		)
 
+
+		type pairsInfo = typeof pairsOfAllSubs['query'] extends Map<any, infer I> ? I : never
+		type targetAndPairsInfoTuple = [string, pairsInfo]
+		type userPairsInfo = { query: targetAndPairsInfoTuple, groupName: targetAndPairsInfoTuple }
+		const bothSubsUsers = new Map<dbUser, userPairsInfo>()
+		function getUserPairsInfo(dbuser: dbUser) {
+			let t = bothSubsUsers.get(dbuser)
+			if (!t) {
+				t = { query: ['', { available: false }], groupName: ['', { available: false }] }
+				bothSubsUsers.set(dbuser, t)
+			}
+
+			return t
+		}
+
 		// генерация и рассылка расписания
-		const deferredMessages = new Map<number, string>()
 		const tasks: Promise<any>[] = []
 		const errors: unknown[] = []
 		const send = (user: dbUser, text: string) => sendFuncs[user.platform](user.id, text).catch(e => { errors.push(e) })
+		const subtitleByGroupName = (groupName: string) => `📌 Группа ${groupName}:`
+		const subtitleByQuery = (query: string) => `📌 Результаты поиска по "${query}":`
 
 		for (const [group, pairsInfo] of pairsOfAllSubs.groupName) {
-			if (!pairsInfo.available) {
-				continue
-			}
-			const { pairs } = pairsInfo
-
 			const users = subsOfGroup.get(group) ?? []
 
 			const cacheByFormat = new Array<string>(Formatter.presets.length)
 			for (const user of users) {
+				// если две подписки, то только занести данные
+				if (user.query) {
+					getUserPairsInfo(user).groupName = [group, pairsInfo]
+
+					continue
+				}
+
+				if (!pairsInfo.available) {
+					continue
+				}
+
+				// если рассылка на сегодня и расписание пустое
+				if (!nextday && pairsInfo.pairs.length === 0) {
+					continue
+				}
+
 				let text = cacheByFormat[user.format]
 				if (!text) {
-					text = `${title}\n\n📌 Группа ${group}:\n${Formatter.formatPairs(pairs, user.format)}`
+					text = `${title}\n\n${subtitleByGroupName(group)}\n${Formatter.formatPairs(pairsInfo.pairs, user.format)}`
 					cacheByFormat[user.format] = text
 				}
 
-				// если есть ещё и подписка на поиск, то сохранить для отправки одним сообщением
-				if (user.query) {
-					deferredMessages.set(user.id, text)
-				} else {
-					// иначе отправить сразу же
-					tasks.push(send(user, text))
-				}
+				tasks.push(send(user, text))
 			}
 		}
 
 		for (const [query, pairsInfo] of pairsOfAllSubs.query) {
 			const users = subsOfQuery.get(query) ?? []
 
-			if (!pairsInfo.available) {
-				for (const user of users) {
-					const text = deferredMessages.get(user.id)
-
-					if (text) {
-						tasks.push(send(user, text))
-					}
-				}
-
-				continue
-			}
-			const { pairs } = pairsInfo
-
 			const cacheByFormat = new Array<string>(Formatter.presets.length)
 			for (const user of users) {
+				if (user.group_name) {
+					getUserPairsInfo(user).query = [query, pairsInfo]
+
+					continue
+				}
+
+				if (!pairsInfo.available) {
+					// невозможно, т.к. для поиска расписание в апи помечается недоступным только если оно недоступно ни для одного факультета
+					// такие случаи отсекаются в начале функции
+					const warnText = 'расписание получено, но недоступно в подписках поиска'
+					console.warn(warnText)
+					errors.push(warnText)
+
+					continue
+				}
+
+				// если рассылка на сегодня и расписание пустое
+				if (!nextday && pairsInfo.pairs.length === 0) {
+					continue
+				}
+
 				let text = cacheByFormat[user.format]
 				if (!text) {
-					text = `📌 Результаты поиска по "${query}":\n${Formatter.formatPairs(pairs, user.format)}`
+					text = `${title}\n\n${subtitleByQuery(query)}\n${Formatter.formatPairs(pairsInfo.pairs, user.format)}`
 					cacheByFormat[user.format] = text
 				}
 
-				const stMsgPart = deferredMessages.get(user.id)
-				if (stMsgPart) {
-					text = `${stMsgPart}\n${text}`
+				tasks.push(send(user, text))
+			}
+		}
+
+		for (const [user, userPairsInfo] of bothSubsUsers) {
+			const [groupName, groupNamePairsInfo] = userPairsInfo.groupName
+			const [query, queryPairsInfo] = userPairsInfo.query
+
+			const availByGroupName = groupNamePairsInfo.available
+			const availByQuery = queryPairsInfo.available
+			// если оба недоступны
+			if (!availByGroupName && !availByQuery) {
+				continue
+			}
+
+			const fullByGroupName = availByGroupName && groupNamePairsInfo.pairs.length > 0
+			const fullByQuery = availByQuery && queryPairsInfo.pairs.length > 0
+			// если рассылка на сегодня и вариантов лучше пустого расписания нет
+			if (!nextday && !(fullByGroupName || fullByQuery)) {
+				continue
+			}
+
+			const text = title + '\n\n' + makeText(groupNamePairsInfo, subtitleByGroupName(groupName)) + makeText(queryPairsInfo, subtitleByQuery(query))
+
+			tasks.push(send(user, text))
+			
+
+			function makeText(pairsInfo: pairsInfo, subtitle: string) {
+				let body = ''
+
+				if (!pairsInfo.available) {
+					body = '⚠️ Расписание недоступно'
 				} else {
-					text = `${title}\n\n${text}`
+					body = Formatter.formatPairs(pairsInfo.pairs, user.format)
 				}
 
-				tasks.push(send(user, text))
+				return `${subtitle}\n${body}\n`
 			}
 		}
 
