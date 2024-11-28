@@ -96,6 +96,15 @@ export class TgBot implements PlatformSpecificBot {
             }
         });
 
+        // прикрепить обработчик блокировки бота пользователями
+        this.bot.on('my_chat_member', async (ctx) => {
+            if (ctx.myChatMember.new_chat_member.status === 'kicked') {
+                const qres = await User.drop(this.pool, ctx.myChatMember.chat.id, 'tg')
+
+                this.logger.dumpRequest(JSON.stringify({ from: TgBot.senderOf(ctx.myChatMember), dbUser: qres.rows[0] }), 'blocked by user', 'blocked')
+            }
+        })
+
         // ловить ошибки и отправлять их в чат
         this.bot.catch((err, ctx) => {
 
@@ -173,16 +182,16 @@ export class TgBot implements PlatformSpecificBot {
         return this.bot.launch()
     }
 
-    static senderOf(msg: Message) {
-        const idInfo = ` (${msg.chat.id})`
-        if (msg.from) {
-            if (msg.from.username) {
-                return '@' + msg.from.username + idInfo
+    static senderOf(msgLike: Pick<Message, 'chat' | 'from'>) {
+        const idInfo = ` (${msgLike.chat.id})`
+        if (msgLike.from) {
+            if (msgLike.from.username) {
+                return '@' + msgLike.from.username + idInfo
             } else {
-                return `${msg.from.first_name} ${msg.from.last_name ?? ''}` + idInfo
+                return `${msgLike.from.first_name} ${msgLike.from.last_name ?? ''}` + idInfo
             }
         } else {
-            return msg.chat.type + idInfo
+            return msgLike.chat.type + idInfo
         }
     }
 
