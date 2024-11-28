@@ -20,6 +20,9 @@ export class Bot {
 
 		try {
 			if ('start' in request) {
+				// добавить пользователя в бд
+				await getUser()
+
 				return text = texts.shortHelp
 			}
 

@@ -112,7 +112,7 @@ export class User {
     }
 
     static async drop(pool: Pool, id: number, platform: platforms) {
-        await pool.query('DELETE FROM users WHERE id = $1::bigint and platform = $2::text', [id, platform])
+        return await pool.query<dbUser, [id: number, platform: platforms]>('DELETE FROM users WHERE id = $1::bigint and platform = $2::text RETURNING *', [id, platform])
     }
 }
 

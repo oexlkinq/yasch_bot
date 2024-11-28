@@ -140,7 +140,13 @@ export class MsgAnalyser {
             }
     
             let chunks = msgChunks.map(text => ({ text, used: false }))
-            usedChunks.forEach(item => chunks[item.index].used = true)
+            usedChunks.forEach(item => {
+                // TODO: по хорошему, похожие действия нужно выполнить и для чанков типа feedback. также стоит перенести эти преобразования в aboutActions в виде функции
+                if (item.type === 'query') {
+                    chunks[item.index].text += ' ' + item.value
+                }
+                chunks[item.index].used = true
+            })
     
             return {
                 action: type,

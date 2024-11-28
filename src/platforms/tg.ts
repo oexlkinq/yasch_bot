@@ -164,6 +164,10 @@ export class TgBot implements PlatformSpecificBot {
             }
         ])
 
+        // Enable graceful stop
+        process.once('SIGINT', () => this.bot.stop('SIGINT'))
+        process.once('SIGTERM', () => this.bot.stop('SIGTERM'))
+
         // запуск обработки сообщений
         console.log('(tg) start polling...')
         return this.bot.launch()
