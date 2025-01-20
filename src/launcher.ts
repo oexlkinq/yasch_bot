@@ -42,6 +42,10 @@ const sendFuncs = {
 
 // создание задач рассылки
 scheduleJob('0 7 * 1-6,9-12 1-6', async () => {
+if (isNewYear()) {
+        return
+    }
+    
     try {
         await bot.startMailing(sendFuncs, false)
     } catch (e) {
@@ -50,6 +54,10 @@ scheduleJob('0 7 * 1-6,9-12 1-6', async () => {
     }
 });
 scheduleJob('0 19 * 1-6,9-12 0-5', async () => {
+if (isNewYear()) {
+        return
+    }
+    
     try {
         await bot.startMailing(sendFuncs, true)
     } catch (e) {
@@ -57,6 +65,14 @@ scheduleJob('0 19 * 1-6,9-12 0-5', async () => {
         logger.logToChat('бот. рассылка сл день', e)
     }
 });
+function isNewYear() {
+    const date = new Date()
+
+    const preNewYear = (date.getMonth() === 11) && (date.getDate() === 31)
+    const postNewYear = (date.getMonth() === 0) && (date.getDate() < 8)
+
+    return preNewYear || postNewYear
+}
 
 // запуск рассылки для тестирования
 if (process.argv.includes('mailnow')) {
