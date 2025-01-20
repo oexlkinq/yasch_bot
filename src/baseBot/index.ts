@@ -26,10 +26,6 @@ export class Bot {
 				return text = texts.shortHelp
 			}
 
-			if (request.text.length > 100) {
-				return text = '⚠️ Слишком длинный запрос'
-			}
-
 			const analyseRes = this.msgAnalyser.analyse(request.text)
 			if (!analyseRes) {
 				return text = '⚠️ Не удалось определить команду'

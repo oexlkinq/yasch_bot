@@ -65,8 +65,14 @@ export class MsgAnalyser {
         let msgChunks = msgLC.trim().split(/\s+/)
         const chunksInfoByType = new Map<chunkType, { index: number, value: chunkValueTypes[chunkType] }>()
     
+        let analysedLength = 0
         for (let i = 0; i < msgChunks.length; i++) {
             const chunk = msgChunks[i]
+
+            if (analysedLength > 100) {
+                break 
+            }
+            analysedLength += chunk.length
     
             // попытаться определить чанк по карте
             let match = this.chunksMap.get(chunk)
