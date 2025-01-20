@@ -6,4 +6,5 @@ export abstract class PlatformSpecificBot {
     abstract mailingSend(user_id: number, text: string): Promise<void>
 }
 
-export type platforms = 'tg' | 'vk'
+export const platformNames = ['tg', 'vk'] as const
+export type platforms = typeof platformNames[number]

@@ -7,6 +7,7 @@ import { MsgAnalyser } from "./baseBot/msgAnalyser/index.js";
 import { scheduleJob } from "node-schedule";
 import { TgBot } from "./platforms/tg.js";
 import { VkBot } from "./platforms/vk.js";
+import { WebAppApi } from "./platforms/tg_web_app_api.js";
 
 // проверка кол-ва аргументов
 if (process.argv.length - 2 < 1) {
@@ -32,7 +33,8 @@ const db = new DB(config.pg_connection_string, logger)
 const msgAnalyser = new MsgAnalyser()
 const bot = new Bot(msgAnalyser, schapi, db, logger)
 
-const tgbot = new TgBot(config.tg.token, db.pool, logger)
+const tgbot = new TgBot(config.tg.token, db.pool, logger, config.tg.testEnv)
+const webApp = new WebAppApi(tgbot, db.pool, schapi, config.tg.token, config.tg.web_app.api_port, config.tg.web_app.address)
 const vkbot = new VkBot(config.vk.token, config.vk.group_id, db.pool)
 
 const sendFuncs = {
@@ -42,7 +44,7 @@ const sendFuncs = {
 
 // создание задач рассылки
 scheduleJob('0 7 * 1-6,9-12 1-6', async () => {
-if (isNewYear()) {
+    if (isNewYear()) {
         return
     }
     
@@ -54,7 +56,7 @@ if (isNewYear()) {
     }
 });
 scheduleJob('0 19 * 1-6,9-12 0-5', async () => {
-if (isNewYear()) {
+    if (isNewYear()) {
         return
     }
     
@@ -86,6 +88,7 @@ await bot.router({ text: 'звонки ради подогреть роутер'
 
 // запуск бота
 tgbot.start(bot.router.bind(bot), config.allow_skip_startup_burst)
+webApp.start()
 vkbot.start(bot.router.bind(bot), config.allow_skip_startup_burst)
 
 type config = {
@@ -102,6 +105,11 @@ type config = {
     tg: {
         /** токен тг бота */
         token: string,
+        testEnv: boolean,
+        web_app: {
+            api_port: number,
+            address: string,
+        },
     },
     /** специфичные для вк бота настройки */
     vk: {

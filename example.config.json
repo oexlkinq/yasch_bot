@@ -5,7 +5,11 @@
     "allow_skip_startup_burst": true,
 
     "tg": {
-        "token": "123:abc"
+        "token": "123:abc",
+        "web_app": {
+            "api_port": 1234,
+            "address": "https://localhost/"
+        }
     },
     "vk": {
         "token": "vk1.a.kkjDs4f_has+f",

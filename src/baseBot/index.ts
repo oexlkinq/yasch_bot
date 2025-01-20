@@ -114,18 +114,9 @@ export class Bot {
 				return ((available) ? '' : '⚠️ Расписание для указанной группы ранее никогда не публиковалось. Проверьте правильность ввода\n\n') + makeText(user)
 
 			case "query":
-				if (target.value.length < 3) {
-					return '⚠️ Поисковый запрос не может быть короче 3 символов'
-				}
-
-				let specialSymbolsCount = 0
-				for (let i = 0; i < target.value.length; i++) {
-					if (target.value[i] === '_' || target.value[i] === '%') {
-						specialSymbolsCount++
-					}
-				}
-				if (specialSymbolsCount / target.value.length > 0.25) {
-					return '⚠️ Слишком общий запрос. Кол-во специальных символов не может быть больше четверти длины строки'
+				const valRes = Bot.validateQuery(target.value)
+				if (valRes !== true) {
+					return valRes
 				}
 
 				await user.setQuery(target.value)
@@ -139,11 +130,28 @@ export class Bot {
 			return `ℹ️ Настройки подписки обновлены\nТекущие настройки:\n\nГруппа: ${group}\nПоисковый запрос: ${query}\nРассылка: ${mailingStatus}`
 		}
 	}
+	static validateQuery(query: string) {
+		if (query.length < 3) {
+			return '⚠️ Поисковый запрос не может быть короче 3 символов'
+		}
+
+		let specialSymbolsCount = 0
+		for (let i = 0; i < query.length; i++) {
+			if (query[i] === '_' || query[i] === '%') {
+				specialSymbolsCount++
+			}
+		}
+		if (specialSymbolsCount / query.length > 0.25) {
+			return '⚠️ Слишком общий запрос. Кол-во специальных символов не может быть больше четверти длины строки'
+		}
+
+		return true
+	}
 
 	async searchHandler(info: actionsInfo['search'], getUser: getUser): Promise<string> {
 		let targets = {
-			group: undefined as string | undefined,
-			query: undefined as string | undefined,
+			group: null as string | null,
+			query: null as string | null,
 		}
 
 		if (info.target) {

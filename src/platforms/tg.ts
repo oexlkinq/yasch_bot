@@ -4,57 +4,43 @@ import { User } from "../db.js"
 import { Bot } from "../baseBot/index.js"
 import { PlatformSpecificBot } from "./index.js"
 
-import { Telegraf, TelegramError } from "telegraf"
+import { Telegraf, Telegram, TelegramError } from "telegraf"
 import { Message, ReplyKeyboardMarkup, Update } from "telegraf/types"
 import { message } from "telegraf/filters"
 import { Logger } from "../logger.js"
+import { filterObj } from "./tg_web_app_api.js"
+
 
 export class TgBot implements PlatformSpecificBot {
-    bot: Telegraf
+    tf: Telegraf
     generalLimiter: Bottleneck
     mailingLimiter: Bottleneck
 
     constructor(
-        token: string,
+        private token: string,
         public pool: Pool,
         public logger: Logger,
+        testEnv: boolean,
     ) {
-        this.bot = new Telegraf(token)
+
+        this.tf = new Telegraf(this.token, { telegram: { testEnv } })
         this.generalLimiter = new Bottleneck({
-            maxConcurrent: 30,
+            maxConcurrent: 15,
             reservoir: 30,
             reservoirRefreshAmount: 30,
             reservoirRefreshInterval: 1000,
         })
         this.mailingLimiter = new Bottleneck({
-            maxConcurrent: 25,
+            maxConcurrent: 10,
             minTime: 1000 / 25,
         })
         this.mailingLimiter.chain(this.generalLimiter)
-    }
 
-    mailingSend(chat_id: number, text: string) {
-        return this.mailingLimiter.schedule(async () => {
-            try {
-                await this.bot.telegram.sendMessage(chat_id, text)
-            } catch (e) {
-                if (e instanceof TelegramError) {
-                    if ([400, 403].includes(e.code)) {
-                        await User.drop(this.pool, chat_id, 'tg')
-                        console.warn(`(tg) user ${chat_id} was dropped`)
-
-                        return
-                    }
-                }
-
-                throw e
-            }
-        })
     }
 
     async start(router: Bot['router'], allowSkipStartupBurst = true) {
         // прикрепить обработчик сообщений
-        this.bot.on(message('text'), async (ctx) => {
+        this.tf.on(message('text'), async (ctx) => {
             const from = 'tg: ' + TgBot.senderOf(ctx.msg)
             const response = await router(
                 (ctx.text.startsWith('/start')) ? {
@@ -97,7 +83,7 @@ export class TgBot implements PlatformSpecificBot {
         });
 
         // прикрепить обработчик блокировки бота пользователями
-        this.bot.on('my_chat_member', async (ctx) => {
+        this.tf.on('my_chat_member', async (ctx) => {
             if (ctx.myChatMember.new_chat_member.status === 'kicked') {
                 const qres = await User.drop(this.pool, ctx.myChatMember.chat.id, 'tg')
 
@@ -106,7 +92,7 @@ export class TgBot implements PlatformSpecificBot {
         })
 
         // ловить ошибки и отправлять их в чат
-        this.bot.catch((err, ctx) => {
+        this.tf.catch((err, ctx) => {
 
             this.logger.logToChat('bot.catch', err)
             console.error(err, ctx)
@@ -121,7 +107,7 @@ export class TgBot implements PlatformSpecificBot {
             const latestUpdatesOfChats = new Map<number, Update.MessageUpdate>()
 
             while (true) {
-                const updates = await this.bot.telegram.getUpdates(0, 100, offset, ['message'])
+                const updates = await this.tf.telegram.getUpdates(0, 100, offset, ['message'])
 
                 if (updates.length === 0) {
                     break
@@ -161,12 +147,12 @@ export class TgBot implements PlatformSpecificBot {
             }
 
             const updates = Array.from(latestUpdatesOfChats.values())
-            await Promise.all(updates.map((update) => this.bot.handleUpdate(update)))
+            await Promise.all(updates.map((update) => this.tf.handleUpdate(update)))
         }
 
         // обновить список команд
         console.log('(tg) update commands...');
-        await this.bot.telegram.setMyCommands([
+        await this.tf.telegram.setMyCommands([
             {
                 command: 'start',
                 description: 'Короткая справка + показать кнопки',
@@ -174,12 +160,96 @@ export class TgBot implements PlatformSpecificBot {
         ])
 
         // Enable graceful stop
-        process.once('SIGINT', () => this.bot.stop('SIGINT'))
-        process.once('SIGTERM', () => this.bot.stop('SIGTERM'))
+        // process.once('SIGINT', () => this.tf.stop('SIGINT'))
+        // process.once('SIGTERM', () => this.tf.stop('SIGTERM'))
 
         // запуск обработки сообщений
         console.log('(tg) start polling...')
-        return this.bot.launch()
+        return this.tf.launch()
+    }
+
+    mailingSend(chat_id: number, text: string) {
+        return this.mailingLimiter.schedule(async () => {
+            try {
+                await this.tf.telegram.sendMessage(chat_id, text)
+            } catch (e) {
+                if (e instanceof TelegramError) {
+                    if ([400, 403].includes(e.code)) {
+                        await User.drop(this.pool, chat_id, 'tg')
+                        console.warn(`(tg) user ${chat_id} was dropped`)
+
+                        return
+                    }
+                }
+
+                throw e
+            }
+        })
+    }
+
+    isMailingActive = false
+    async runMailing(statusChatId: number, text: string, filter: filterObj, statusUpdateTimeout = 2000) {
+        try {
+            this.isMailingActive = true
+    
+            const send = this.mailingLimiter.wrap(this.tf.telegram.sendMessage.bind(this.tf.telegram))
+    
+            const chatIds = await User.getByFilter(this.pool, filter)
+    
+            const contentMsg = await send(statusChatId, text)
+            const statusMsg = await send(statusChatId, `Запущена рассылка\nТекущий прогресс: 0 / ${chatIds.length}`)
+    
+            let progress = 0
+            let prevProgress = progress
+            const updateStatus = async () => {
+                if (prevProgress === progress) {
+                    return
+                }
+                prevProgress = progress
+    
+                await this.mailingLimiter.schedule(() => this.tf.telegram.editMessageText(
+                    statusMsg.chat.id,
+                    statusMsg.message_id,
+                    undefined,
+                    `Запущена рассылка\nТекущий прогресс: ${progress} / ${chatIds.length}`,
+                ))
+    
+                if (progress !== chatIds.length) {
+                    setTimeout(updateStatus, statusUpdateTimeout)
+                }
+            }
+            setTimeout(updateStatus, statusUpdateTimeout)
+    
+            let errorsCount = 0
+            for (const [chatId] of chatIds) {
+                if (chatId === statusChatId) {
+                    continue
+                }
+    
+                try {
+                    await this.mailingLimiter.schedule(async () => await this.tf.telegram.copyMessage(
+                        chatId,
+                        contentMsg.chat.id,
+                        contentMsg.message_id,
+                    ))
+                } catch (e) {
+                    console.error(e)
+                    errorsCount++
+                }
+    
+                progress++
+            }
+    
+            if (errorsCount !== 0) {
+                this.logger.logToChat('tg.runMailing', `рассылка: "${text.slice(0, 50)}"\nкол-во ошибок: ${errorsCount}`)
+            }
+    
+        } catch(e) {
+            console.error(e)
+            this.logger.logToChat('tgbot.runMailing.общий try', e)
+        } finally {
+            this.isMailingActive = false
+        }
     }
 
     static senderOf(msgLike: Pick<Message, 'chat' | 'from'>) {
